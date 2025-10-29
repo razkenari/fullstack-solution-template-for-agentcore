@@ -83,7 +83,25 @@ The deployment will:
 
 ### 4. Create a Cognito User
 
-After deployment completes, you need to create a user in Cognito to access the application:
+After deployment completes, you need to create a user in Cognito to access the application. 
+
+You can run the provided script to create a user:
+
+```bash
+./scripts/create-admin-user.sh
+```
+
+Default: `admin` / `Admin123!` (change password after first login)
+
+**Optional parameters:** `[stack_name] [username] [email]`
+
+Examples:
+```bash
+./scripts/create-admin-user.sh my-stack myuser user@example.com
+./scripts/create-admin-user.sh my-stack myuser
+```
+
+Or follow the instructions, to create a user from AWS Console:
 
 1. Go to the [AWS Cognito Console](https://console.aws.amazon.com/cognito/)
 2. Find your User Pool (named `{stack_name_base}-user-pool`)
