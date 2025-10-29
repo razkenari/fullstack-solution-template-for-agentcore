@@ -15,7 +15,7 @@ export class GaspCdkStack extends cdk.Stack {
   public readonly frontendStack: FrontendStack
 
   constructor(scope: Construct, id: string, props: GaspCdkStackProps) {
-    const description = "GenAIID AgentCore Starter Pack - Main Stack"
+    const description = "GenAIID AgentCore Starter Pack - Main Stack (uksb-v6dos0t5g8)"
     super(scope, id, { ...props, description })
 
     // Deploy backend stack first (creates Cognito + Runtime)
