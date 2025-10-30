@@ -15,6 +15,7 @@ image: public.ecr.aws/docker/library/python:3.13-bookworm
 
 stages:
   - developer_tests
+  - test # Need this name specifically for ASH scanning
 
 developer_tests:
   stage: developer_tests
