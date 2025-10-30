@@ -27,6 +27,8 @@ Edit `infra-cdk/config.yaml` to customize your deployment:
 ```yaml
 stack_name_base: "your-project-name"  # Change this to your preferred stack name
 
+admin_user_email: null  # Optional: admin@example.com (auto-creates user & emails credentials)
+
 frontend:
   domain_name: null  # Optional: Set to your custom domain (e.g., "app.example.com")
   certificate_arn: null  # Optional: Set to your ACM certificate ARN if using custom domain
@@ -83,8 +85,11 @@ The deployment will:
 
 ### 4. Create a Cognito User
 
-After deployment completes, you need to create a user in Cognito to access the application:
+**If you provided `admin_user_email` in config:**
+- Check your email for temporary password
+- Sign in and change password on first login
 
+**If you didn't provide email:**
 1. Go to the [AWS Cognito Console](https://console.aws.amazon.com/cognito/)
 2. Find your User Pool (named `{stack_name_base}-user-pool`)
 3. Click on the User Pool

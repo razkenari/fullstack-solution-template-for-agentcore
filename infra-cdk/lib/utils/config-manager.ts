@@ -4,6 +4,7 @@ import * as yaml from "yaml"
 
 export interface AppConfig {
   stack_name_base: string
+  admin_user_email?: string | null
   frontend: {
     domain_name?: string | null
     certificate_arn?: string | null
@@ -27,6 +28,7 @@ export class ConfigManager {
       // Return default configuration if file doesn't exist
       return {
         stack_name_base: "genaiid-agentcore-starter-pack",
+        admin_user_email: null,
         frontend: {
           domain_name: null,
           certificate_arn: null,
@@ -44,6 +46,7 @@ export class ConfigManager {
       // Validate required fields and provide defaults
       return {
         stack_name_base: parsedConfig.stack_name_base || "genaiid-agentcore-starter-pack",
+        admin_user_email: parsedConfig.admin_user_email || null,
         frontend: {
           domain_name: parsedConfig.frontend?.domain_name || null,
           certificate_arn: parsedConfig.frontend?.certificate_arn || null,

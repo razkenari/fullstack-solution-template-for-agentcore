@@ -50,12 +50,18 @@ export class BackendStack extends cdk.NestedStack {
   private createCognitoUserPool(config: AppConfig): void {
     this.userPool = new cognito.UserPool(this, "UserPool", {
       userPoolName: `${config.stack_name_base}-user-pool`,
+      selfSignUpEnabled: false,
       signInAliases: {
-        username: true,
         email: true,
       },
       autoVerify: {
         email: true,
+      },
+      standardAttributes: {
+        email: {
+          required: true,
+          mutable: false,
+        },
       },
       passwordPolicy: {
         minLength: 8,
@@ -66,6 +72,15 @@ export class BackendStack extends cdk.NestedStack {
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      userInvitation: {
+        emailSubject: `Welcome to ${config.stack_name_base}!`,
+        emailBody: `<p>Hello {username},</p>
+<p>Welcome to ${config.stack_name_base}! Your username is <strong>{username}</strong> and your temporary password is: <strong>{####}</strong></p>
+<p>Please use this temporary password to log in and set your permanent password.</p>
+<p>The CloudFront URL to your application is stored as an output in the "${config.stack_name_base}" stack, and will be printed to your terminal once the deployment process completes.</p>
+<p>Thanks,</p>
+<p>AWS GENAIIC Team</p>`,
+      },
     })
 
     this.userPoolClient = new cognito.UserPoolClient(this, "UserPoolClient", {
@@ -92,6 +107,27 @@ export class BackendStack extends cdk.NestedStack {
         domainPrefix: `${config.stack_name_base}-${cdk.Aws.ACCOUNT_ID}-${cdk.Aws.REGION}`,
       },
     })
+
+    // Create admin user if email is provided in config
+    if (config.admin_user_email) {
+      const adminUser = new cognito.CfnUserPoolUser(this, "AdminUser", {
+        userPoolId: this.userPool.userPoolId,
+        username: config.admin_user_email,
+        userAttributes: [
+          {
+            name: "email",
+            value: config.admin_user_email,
+          },
+        ],
+        desiredDeliveryMediums: ["EMAIL"],
+      })
+
+      // Output admin user creation status
+      new cdk.CfnOutput(this, "AdminUserCreated", {
+        description: "Admin user created and credentials emailed",
+        value: `Admin user created: ${config.admin_user_email}`,
+      })
+    }
   }
 
   private createCognitoSSMParameters(config: AppConfig): void {
@@ -328,6 +364,11 @@ export class BackendStack extends cdk.NestedStack {
     new cdk.CfnOutput(this, "AgentRoleArn", {
       description: "ARN of the agent execution role",
       value: agentRole.roleArn,
+    })
+
+    new cdk.CfnOutput(this, "CognitoUserPoolId", {
+      description: "Cognito User Pool ID - create users manually in AWS Console",
+      value: this.userPool.userPoolId,
     })
 
     // Ensure the custom resource depends on the build project
