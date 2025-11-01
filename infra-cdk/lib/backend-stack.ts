@@ -457,7 +457,11 @@ export class BackendStack extends cdk.NestedStack {
         ALLOWED_ORIGINS: "*", // Wildcard CORS - see API Gateway comment below for security rationale
       },
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: new logs.LogGroup(this, "FeedbackLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-feedback`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
     })
 
     // Grant Lambda permissions to write to DynamoDB
