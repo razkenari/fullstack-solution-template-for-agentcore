@@ -1,4 +1,87 @@
 import { fetchAuthSession } from "aws-amplify/auth"
+/**
+ * AgentCore Service - Streaming Response Handler
+ *
+ * Handles streaming responses from AgentCore agents using Server-Sent Events (SSE).
+ *
+ * CUSTOMIZATION FOR OTHER AGENT TYPES:
+ * The parseStreamingChunk() function below is configured for Strands agents.
+ * To support other agent types (LangGraph, custom), replace this function
+ * with your agent's specific event parsing logic.
+ */
+const parseStreamingChunk = (line, currentCompletion, updateCallback) => {
+  /**
+   * Current Implementation for Strands agents:
+   * - Extracts 'data' field for streaming text chunks (accumulates)
+   * - Extracts 'text' from 'result' for final message (replaces)
+   *
+   * TO CUSTOMIZE:
+   * Replace this entire function with your agent's parsing logic.
+   * Must handle accumulation vs replacement internally.
+   */
+
+  // Skip empty lines
+  if (!line || !line.trim()) {
+    return currentCompletion;
+  }
+
+  // Strip "data: " prefix from SSE format
+  if (!line.startsWith('data: ')) {
+    return currentCompletion;
+  }
+
+  const data = line.substring(6).trim();
+
+  // Skip empty data
+  if (!data) {
+    return currentCompletion;
+  }
+
+  // Try to parse as JSON first
+  try {
+    const json = JSON.parse(data);
+
+    // Extract streaming text from contentBlockDelta event
+    // Example: {"event": {"contentBlockDelta": {"delta": {"text": " there"}}}}
+    if (json.event?.contentBlockDelta?.delta?.text) {
+      const newCompletion = currentCompletion + json.event.contentBlockDelta.delta.text;
+      updateCallback(newCompletion);
+      return newCompletion;
+    }
+
+    // Extract final message content (replaces accumulated text)
+    // Example: {"message": {"content": [{"text": "Hello there!"}]}}
+    if (json.message?.content?.[0]?.text) {
+      const finalText = json.message.content[0].text;
+      updateCallback(finalText);
+      return finalText;
+    }
+
+    return currentCompletion;
+  } catch {
+    // Parse Python dictionary string format
+
+    // Extract 'data' field (accumulate)
+    // Example: "{'data': 'Hello', 'delta': {'text': 'Hello'}, ...}"
+    const dataMatch = data.match(/'data':\s*'([^']+)'/);
+    if (dataMatch) {
+      const newCompletion = currentCompletion + dataMatch[1];
+      updateCallback(newCompletion);
+      return newCompletion;
+    }
+
+    // Extract 'text' from 'result' (replace)
+    // Example: "{'result': AgentResult(..., 'text': 'Hello there!'), ...}"
+    const resultMatch = data.match(/'text':\s*'([^']+)'/);
+    if (resultMatch) {
+      const finalText = resultMatch[1];
+      updateCallback(finalText);
+      return finalText;
+    }
+
+    return currentCompletion;
+  }
+};
 
 // Generate a UUID-like string that meets AgentCore requirements (min 33 chars)
 const generateId = () => {
@@ -27,11 +110,11 @@ export const setAgentConfig = (runtimeArn, region = "us-east-1") => {
 export const invokeAgentCore = async (query, sessionId, onStreamUpdate) => {
   try {
     // Get Amplify auth session to extract access token
-    const session = await fetchAuthSession()
-    const accessToken = session.tokens?.accessToken?.toString()
+    const session = await fetchAuthSession();
+    const accessToken = session.tokens?.accessToken?.toString();
 
     // Extract userId from the ID token (sub is the unique user identifier)
-    const userId = session.tokens?.idToken?.payload?.sub
+    const userId = session.tokens?.idToken?.payload?.sub;
 
     if (!userId) {
       throw new Error("No valid user ID found in session. Please ensure you are authenticated.")
@@ -84,7 +167,8 @@ export const invokeAgentCore = async (query, sessionId, onStreamUpdate) => {
       throw new Error(`HTTP ${response.status}: ${errorText}`)
     }
 
-    let completion = ""
+    let completion = '';
+    let buffer = '';
 
     // Handle streaming response
     if (response.body) {
@@ -96,11 +180,20 @@ export const invokeAgentCore = async (query, sessionId, onStreamUpdate) => {
           const { done, value } = await reader.read()
           if (done) break
 
-          const chunk = decoder.decode(value, { stream: true })
-          completion += chunk
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
 
-          // Call the streaming update callback
-          onStreamUpdate(completion)
+          // Process complete lines (SSE format uses newlines as delimiters)
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          // eslint-disable-next-line no-restricted-syntax
+          for (const line of lines) {
+            if (line.trim()) {
+              // Parser handles all logic (accumulation vs replacement)
+              completion = parseStreamingChunk(line, completion, onStreamUpdate);
+            }
+          }
         }
       } finally {
         reader.releaseLock()
