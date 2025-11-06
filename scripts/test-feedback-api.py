@@ -187,15 +187,15 @@ def main():
     password = getpass.getpass(f"Enter password for {username}: ")
     
     # Authenticate
-    access_token, _user_id = authenticate_cognito(
+    access_token, id_token, _user_id = authenticate_cognito(
         params['cognito-user-pool-id'],
         params['cognito-user-pool-client-id'],
         username,
         password
     )
     
-    # Run tests
-    passed, failed = run_tests(params['feedback-api-url'], access_token)
+    # Run tests - use ID token for API Gateway Cognito User Pool authorizer
+    passed, failed = run_tests(params['feedback-api-url'], id_token)
     
     # Summary
     print("\n" + "=" * 42)

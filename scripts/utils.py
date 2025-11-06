@@ -137,7 +137,7 @@ def authenticate_cognito(
     client_id: str,
     username: str,
     password: str
-) -> Tuple[str, str]:
+) -> Tuple[str, str, str]:
     """
     Authenticate with Cognito.
     
@@ -148,7 +148,10 @@ def authenticate_cognito(
         password: Password
     
     Returns:
-        Tuple of (access_token, user_id)
+        Tuple of (access_token, id_token, user_id)
+        - access_token: For AgentCore runtime invocations (JWT authorizer)
+        - id_token: For API Gateway Cognito User Pool authorizers
+        - user_id: User's unique identifier (sub claim)
     """
     print("\nAuthenticating...")
     
@@ -184,7 +187,7 @@ def authenticate_cognito(
         print_msg("Authentication successful")
         print(f"  User ID: {user_id}")
         
-        return access_token, user_id
+        return access_token, id_token, user_id
         
     except Exception as e:
         print_msg(f"Authentication failed: {e}", "error")
