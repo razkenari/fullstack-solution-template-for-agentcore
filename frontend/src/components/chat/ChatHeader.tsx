@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"
 
 type ChatHeaderProps = {
-  title: string | undefined
+  title?: string | undefined
 }
 
 export function ChatHeader({ title }: ChatHeaderProps) {

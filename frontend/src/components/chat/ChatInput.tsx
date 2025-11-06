@@ -37,7 +37,7 @@ export function ChatInput({
     if (e.key === "Enter") {
       if (e.ctrlKey) {
         // Add a new line when Ctrl+Enter is pressed
-        setInput(`${input}\n`)
+        setInput(`${input}\n\n`)
         e.preventDefault()
       } else if (!e.shiftKey) {
         // Submit the form when Enter is pressed without Shift
@@ -51,11 +51,14 @@ export function ChatInput({
 
   return (
     <div className={`p-4 w-full ${className}`}>
-      <form onSubmit={handleSubmit} className="flex space-x-2 w-full items-end bg-white rounded-lg shadow-lg border border-gray-200 p-3">
+      <form
+        onSubmit={handleSubmit}
+        className="flex space-x-2 w-full items-end bg-white rounded-lg shadow-lg border border-gray-200 p-3"
+      >
         <Textarea
           ref={textareaRef}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type your message... (Ctrl+Enter for new line)"
           disabled={isLoading}
