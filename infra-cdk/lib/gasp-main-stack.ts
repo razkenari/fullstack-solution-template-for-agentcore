@@ -68,6 +68,12 @@ export class GaspMainStack extends cdk.Stack {
       exportName: `${props.config.stack_name_base}-RuntimeArn`,
     })
 
+    new cdk.CfnOutput(this, "FeedbackApiUrl", {
+      value: this.backendStack.feedbackApiUrl,
+      description: "Feedback API Gateway URL",
+      exportName: `${props.config.stack_name_base}-FeedbackApiUrl`,
+    })
+
     new cdk.CfnOutput(this, "DeploymentCommand", {
       value: `cd frontend && STACK_NAME=${props.config.stack_name_base} ./bin/amplify-deploy.sh`,
       description: "Command to deploy frontend manually",

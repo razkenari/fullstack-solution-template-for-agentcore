@@ -167,18 +167,21 @@ def main():
     config = get_stack_config()
     print(f"Using stack: {config['stack_name']}\n")
     
-    # Fetch SSM params
-    print("Fetching configuration from SSM...")
-    params = get_ssm_params(
-        config['stack_name'],
-        'cognito-user-pool-id',
-        'cognito-user-pool-client-id',
-        'feedback-api-url'
-    )
+    # Get configuration from CloudFormation outputs
+    print("Fetching configuration from stack outputs...")
+    outputs = config['outputs']
+    
+    # Validate required outputs exist
+    required_outputs = ['CognitoUserPoolId', 'CognitoClientId', 'FeedbackApiUrl']
+    missing = [key for key in required_outputs if key not in outputs]
+    if missing:
+        print_msg(f"Missing required stack outputs: {', '.join(missing)}", "error")
+        sys.exit(1)
+    
     print_msg("Configuration fetched successfully")
-    print(f"  User Pool ID: {params['cognito-user-pool-id']}")
-    print(f"  Client ID: {params['cognito-user-pool-client-id']}")
-    print(f"  API URL: {params['feedback-api-url']}")
+    print(f"  User Pool ID: {outputs['CognitoUserPoolId']}")
+    print(f"  Client ID: {outputs['CognitoClientId']}")
+    print(f"  API URL: {outputs['FeedbackApiUrl']}")
     
     # Get credentials
     print_section("Authentication", width=42)
@@ -187,15 +190,15 @@ def main():
     password = getpass.getpass(f"Enter password for {username}: ")
     
     # Authenticate
-    access_token, _user_id = authenticate_cognito(
-        params['cognito-user-pool-id'],
-        params['cognito-user-pool-client-id'],
+    access_token, id_token, _user_id = authenticate_cognito(
+        outputs['CognitoUserPoolId'],
+        outputs['CognitoClientId'],
         username,
         password
     )
     
-    # Run tests
-    passed, failed = run_tests(params['feedback-api-url'], access_token)
+    # Run tests - use ID token for API Gateway Cognito User Pool authorizer
+    passed, failed = run_tests(outputs['FeedbackApiUrl'], id_token)
     
     # Summary
     print("\n" + "=" * 42)

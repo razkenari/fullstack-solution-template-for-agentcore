@@ -7,24 +7,50 @@ import { ChatMessages } from "./ChatMessages"
 import { Message } from "./types"
 
 import { useGlobal } from "@/app/context/GlobalContext"
-
-/**
- * REMOVE THIS FUNCTION WHEN YOU'RE READY TO INTEGRATE WITH YOUR BACKEND!
- * This is a mock function to simulate a delay in the response from the backend.
- */
-const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+import {
+  invokeAgentCore,
+  generateSessionId,
+  setAgentConfig,
+} from "@/services/agentCoreService"
+import { useAuth } from "react-oidc-context"
 
 export default function ChatInterface() {
   // State for chat messages and user input
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
+  const [sessionId] = useState(() => generateSessionId())
+  const [error, setError] = useState<string | null>(null)
 
   const { isLoading, setIsLoading } = useGlobal()
+  const auth = useAuth()
 
   // Ref for message container to enable auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load agent configuration on mount
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const response = await fetch("/aws-exports.json")
+        if (!response.ok) {
+          throw new Error("Failed to load configuration")
+        }
+        const config = await response.json()
+        
+        if (!config.agentRuntimeArn) {
+          throw new Error("Agent Runtime ARN not found in configuration")
+        }
+        
+        setAgentConfig(config.agentRuntimeArn, config.awsRegion || "us-east-1")
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error"
+        setError(`Configuration error: ${errorMessage}`)
+        console.error("Failed to load agent configuration:", err)
+      }
+    }
+    
+    loadConfig()
+  }, [])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -35,9 +61,12 @@ export default function ChatInterface() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  // Mock function to simulate sending a message to backend
+  // Send message to AgentCore backend with streaming support
   const sendMessage = async (userMessage: string) => {
     if (!userMessage.trim()) return
+
+    // Clear any previous errors
+    setError(null)
 
     // Add user message to chat
     const newUserMessage: Message = {
@@ -50,18 +79,59 @@ export default function ChatInterface() {
     setInput("")
     setIsLoading(true)
 
-    // Simulate API delay
-    await sleep(5000)
-
-    // Mock assistant response
+    // Create placeholder for assistant response
     const assistantResponse: Message = {
       role: "assistant",
-      content: `This is a mock response to: "${userMessage}". In a real implementation, this would be replaced with an actual API call to your GenAI backend.`,
+      content: "",
       timestamp: new Date().toISOString(),
     }
 
     setMessages((prev) => [...prev, assistantResponse])
-    setIsLoading(false)
+
+    try {
+      // Get auth tokens from react-oidc-context
+      const accessToken = auth.user?.access_token
+      const userId = auth.user?.profile?.sub
+
+      if (!accessToken || !userId) {
+        throw new Error("Authentication required. Please log in again.")
+      }
+
+      // Invoke AgentCore with streaming
+      await invokeAgentCore(
+        userMessage,
+        sessionId,
+        (streamedContent: string) => {
+          // Update the last message (assistant response) with streamed content
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: streamedContent,
+            }
+            return updated
+          })
+        },
+        accessToken,
+        userId
+      )
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error"
+      setError(`Failed to get response: ${errorMessage}`)
+      console.error("Error invoking AgentCore:", err)
+      
+      // Update the assistant message with error
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          content: "I apologize, but I encountered an error processing your request. Please try again.",
+        }
+        return updated
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // Handle form submission
@@ -71,10 +141,13 @@ export default function ChatInterface() {
     sendMessage(input)
   }
 
-  // Start a new chat
+  // Start a new chat (generates new session ID)
   const startNewChat = () => {
     setMessages([])
     setInput("")
+    setError(null)
+    // Note: sessionId stays the same for the component lifecycle
+    // If you want a new session ID, you'd need to remount the component
   }
 
   // Check if this is the initial state (no messages)
@@ -88,6 +161,11 @@ export default function ChatInterface() {
       {/* Fixed header */}
       <div className="flex-none">
         <ChatHeader onNewChat={startNewChat} canStartNewChat={hasAssistantMessages} />
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mx-4 mt-2">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
       </div>
 
       {/* Conditional layout based on whether there are messages */}

@@ -21,6 +21,36 @@ Before deploying, ensure you have:
   - Bedrock AgentCore resources
   - IAM roles and policies
 
+### Docker Cross-Platform Build Setup (Required for non-ARM machines)
+
+**Important**: BedrockAgentCore Runtime only supports ARM64 architecture. If you're deploying from a non-ARM machine (x86_64/amd64), you need to enable Docker's cross-platform building capabilities.
+
+Check your machine architecture:
+```bash
+uname -m
+```
+
+If the output is `x86_64` (not `aarch64` or `arm64`), run these commands:
+
+1. **Enable Docker buildx and create a multi-platform builder:**
+   ```bash
+   docker buildx create --use --name multiarch --driver docker-container
+   docker buildx inspect --bootstrap
+   ```
+
+2. **Install QEMU for ARM64 emulation:**
+   ```bash
+   docker run --privileged --rm tonistiigi/binfmt --install all
+   ```
+
+3. **Verify ARM64 support is available:**
+   ```bash
+   docker buildx ls
+   ```
+   You should see `linux/arm64` in the platforms list.
+
+**Note**: This setup is only required once per machine. The CDK deployment will automatically use these capabilities to build ARM64 containers.
+
 ## Configuration
 
 ### 1. Update Configuration File
@@ -72,7 +102,7 @@ Build and deploy the complete stack:
 
 ```bash
 cd infra-cdk
-npm cdk deploy
+npx cdk deploy
 ```
 
 The deployment will:
@@ -218,22 +248,29 @@ cdk destroy --force
 
 ### Common Issues
 
-1. **"Agent Runtime ARN not configured"**
+1. **"Architecture incompatible" or "exec format error" during Docker build**
+
+   - This occurs when deploying from a non-ARM machine without cross-platform build setup
+   - Follow the "Docker Cross-Platform Build Setup" instructions in the Prerequisites section
+   - Ensure you've installed QEMU emulation: `docker run --privileged --rm tonistiigi/binfmt --install all`
+   - Verify ARM64 support: `docker buildx ls` should show `linux/arm64` in platforms
+
+2. **"Agent Runtime ARN not configured"**
 
    - Ensure the backend stack deployed successfully
    - Check that SSM parameters were created correctly
 
-2. **Authentication errors**
+3. **Authentication errors**
 
    - Verify you created a Cognito user
    - Check that the user's email is verified
 
-3. **Build failures**
+4. **Build failures**
 
    - Check CodeBuild logs in the AWS Console
    - Ensure your agent code in `patterns/` is valid
 
-4. **Permission errors**
+5. **Permission errors**
    - Verify your AWS credentials have sufficient permissions
    - Check IAM roles created by the stack
 

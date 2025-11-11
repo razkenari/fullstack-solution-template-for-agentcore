@@ -53,7 +53,7 @@ def generate_aws_exports(stack_name):
             output_map[output['OutputKey']] = output['OutputValue']
 
         # Validate required outputs
-        required = ["CognitoClientId", "CognitoUserPoolId", "AmplifyUrl"]
+        required = ["CognitoClientId", "CognitoUserPoolId", "AmplifyUrl", "RuntimeArn"]
         missing = [key for key in required if key not in output_map]
 
         if missing:
@@ -68,6 +68,8 @@ def generate_aws_exports(stack_name):
             "response_type": "code",
             "scope": "email openid profile",
             "automaticSilentRenew": True,
+            "agentRuntimeArn": output_map['RuntimeArn'],
+            "awsRegion": region,
         }
 
         # Write to frontend/public directory

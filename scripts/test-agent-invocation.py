@@ -149,112 +149,50 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def invoke_agent_local(prompt: str, session_id: str) -> str:
-    """
-    Invoke agent running locally on localhost:8080.
-    
-    Note: Agent must have MEMORY_ID and AWS_DEFAULT_REGION environment variables set.
-    
-    Args:
-        prompt: User prompt/query
-        session_id: Session ID for conversation continuity
-    
-    Returns:
-        Agent's raw response
-    """
-    url = "http://localhost:8080/invocations"
-    
-    payload = {
-        "prompt": prompt,
-        "runtimeSessionId": session_id,
-        "userId": "local-test-user",
-    }
-    
-    try:
-        response = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            json=payload,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            # Return raw response text to show complete agent output
-            return response.text
-        else:
-            return f"Error: HTTP {response.status_code}: {response.text}"
-            
-    except requests.exceptions.ConnectionError:
-        print_msg("Could not connect to localhost:8080", "error")
-        print("\nMake sure your agent is running with required environment variables:")
-        print("  MEMORY_ID=<memory-id> AWS_DEFAULT_REGION=<region> uv run basic_agent.py")
-        print("\nGet memory ID from: uv run scripts/test-memory.py")
-        sys.exit(1)
-    except Exception as e:
-        return f"Error: {e}"
-
-
-def invoke_agent_remote(
+def invoke_agent(
+    url: str,
     prompt: str,
     session_id: str,
     user_id: str,
-    access_token: str,
-    runtime_arn: str,
-    region: str
-) -> str:
+    headers: Optional[Dict[str, str]] = None
+) -> None:
     """
-    Invoke deployed agent via AgentCore endpoint with streaming support.
+    Invoke agent and print raw streaming events in real-time.
     
     Args:
+        url: Agent endpoint URL
         prompt: User prompt/query
         session_id: Session ID for conversation continuity
-        user_id: User ID from Cognito authentication
-        access_token: Cognito access token
-        runtime_arn: Agent runtime ARN
-        region: AWS region
-    
-    Returns:
-        Agent's complete response text
+        user_id: User ID
+        headers: Optional HTTP headers
     """
-    endpoint = f"https://bedrock-agentcore.{region}.amazonaws.com"
-    escaped_arn = requests.utils.quote(runtime_arn, safe='')
-    url = f"{endpoint}/runtimes/{escaped_arn}/invocations?qualifier=DEFAULT"
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "X-Amzn-Trace-Id": generate_trace_id(),
-        "Content-Type": "application/json",
-        "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": session_id,
-    }
-    
     payload = {
         "prompt": prompt,
         "runtimeSessionId": session_id,
         "userId": user_id,
     }
     
+    if headers is None:
+        headers = {}
+    headers["Content-Type"] = "application/json"
+    
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=60
-        )
+        response = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
         
         if response.status_code != 200:
-            return f"Error: HTTP {response.status_code}: {response.text}"
+            print(f"Error: HTTP {response.status_code}: {response.text}")
+            return
         
-        # Handle streaming response
-        completion = ""
-        for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-            if chunk:
-                completion += chunk
+        # Print raw events as they arrive
+        for line in response.iter_lines(decode_unicode=True):
+            if line:
+                print(f"{Fore.GREEN}→{Style.RESET_ALL} {line}", flush=True)
         
-        return completion
-        
+    except requests.exceptions.ConnectionError:
+        print_msg(f"Could not connect to {url}", "error")
+        sys.exit(1)
     except Exception as e:
-        return f"Error: {e}"
+        print(f"Error: {e}")
 
 
 def run_chat(local_mode: bool, config: Dict[str, str]) -> None:
@@ -284,24 +222,38 @@ def run_chat(local_mode: bool, config: Dict[str, str]) -> None:
                 break
             
             # Invoke agent
-            print(f"{Fore.YELLOW}Agent:{Style.RESET_ALL} ", end='', flush=True)
             start_time = time.time()
             
             if local_mode:
-                response = invoke_agent_local(prompt, session_id)
+                # Local mode
+                invoke_agent(
+                    url="http://localhost:8080/invocations",
+                    prompt=prompt,
+                    session_id=session_id,
+                    user_id="local-test-user"
+                )
             else:
-                response = invoke_agent_remote(
+                # Remote mode
+                endpoint = f"https://bedrock-agentcore.{config['region']}.amazonaws.com"
+                escaped_arn = requests.utils.quote(config['runtime_arn'], safe='')
+                url = f"{endpoint}/runtimes/{escaped_arn}/invocations?qualifier=DEFAULT"
+                
+                headers = {
+                    "Authorization": f"Bearer {config['access_token']}",
+                    "X-Amzn-Trace-Id": generate_trace_id(),
+                    "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": session_id,
+                }
+                
+                invoke_agent(
+                    url=url,
                     prompt=prompt,
                     session_id=session_id,
                     user_id=config["user_id"],
-                    access_token=config["access_token"],
-                    runtime_arn=config["runtime_arn"],
-                    region=config["region"]
+                    headers=headers
                 )
             
             elapsed = time.time() - start_time
-            print(response)
-            print()
+            print(f"\n{Fore.CYAN}[Completed in {elapsed:.2f}s]{Style.RESET_ALL}\n")
             
         except KeyboardInterrupt:
             print(f"\n\n{Fore.GREEN}Goodbye!{Style.RESET_ALL}")
@@ -373,18 +325,21 @@ def main():
         stack_cfg = get_stack_config()
         print(f"Stack: {stack_cfg['stack_name']}\n")
         
-        # Fetch SSM params
-        print("Fetching configuration...")
-        params = get_ssm_params(
-            stack_cfg['stack_name'],
-            'cognito-user-pool-id',
-            'cognito-user-pool-client-id',
-            'runtime-arn'
-        )
+        # Get configuration from CloudFormation outputs
+        print("Fetching configuration from stack outputs...")
+        outputs = stack_cfg['outputs']
+        
+        # Validate required outputs exist
+        required_outputs = ['CognitoUserPoolId', 'CognitoClientId', 'RuntimeArn']
+        missing = [key for key in required_outputs if key not in outputs]
+        if missing:
+            print_msg(f"Missing required stack outputs: {', '.join(missing)}", "error")
+            sys.exit(1)
+        
         print_msg("Configuration fetched")
         
-        runtime_arn = params['runtime-arn']
-        region = runtime_arn.split(":")[3]
+        runtime_arn = outputs['RuntimeArn']
+        region = stack_cfg['region']
         
         # Get credentials
         print_section("Authentication")
@@ -396,13 +351,14 @@ def main():
         password = getpass.getpass(f"Enter password for {username}: ")
         
         # Authenticate
-        access_token, user_id = authenticate_cognito(
-            params['cognito-user-pool-id'],
-            params['cognito-user-pool-client-id'],
+        access_token, id_token, user_id = authenticate_cognito(
+            outputs['CognitoUserPoolId'],
+            outputs['CognitoClientId'],
             username,
             password
         )
         
+        # Use access token for AgentCore runtime (JWT authorizer)
         config["access_token"] = access_token
         config["user_id"] = user_id
         config["runtime_arn"] = runtime_arn

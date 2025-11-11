@@ -19,13 +19,13 @@ init(autoreset=True)
 
 def get_stack_config(stack_name: Optional[str] = None) -> Dict:
     """
-    Get complete stack configuration including outputs from backend and frontend stacks.
+    Get complete stack configuration including outputs from main stack.
     
     Args:
         stack_name: Base stack name (if None, loads from config.yaml)
     
     Returns:
-        Dictionary with stack_name, backend_stack, frontend_stack, region, account, and outputs
+        Dictionary with stack_name, region, account, and outputs from main stack
     """
     # Load stack name from config.yaml if not provided
     if not stack_name:
@@ -47,58 +47,31 @@ def get_stack_config(stack_name: Optional[str] = None) -> Dict:
     cfn = boto3.client("cloudformation")
     
     try:
-        # Find backend and frontend stacks
-        prefix = f"{stack_name}-"
-        stacks = cfn.list_stacks(StackStatusFilter=['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
-        
-        backend_stack = None
-        frontend_stack = None
-        
-        for s in stacks['StackSummaries']:
-            name = s['StackName']
-            if name.startswith(prefix):
-                if 'backend' in name.lower():
-                    backend_stack = name
-                elif 'frontend' in name.lower():
-                    frontend_stack = name
-        
-        if not backend_stack:
-            print_msg("Backend stack not found", "error")
-            sys.exit(1)
-        
-        # Get all outputs from backend stack
-        response = cfn.describe_stacks(StackName=backend_stack)
+        # Get outputs from main stack (contains Cognito, Runtime ARN, etc.)
+        response = cfn.describe_stacks(StackName=stack_name)
         stack_info = response["Stacks"][0]
         
         outputs = {}
         for output in stack_info.get("Outputs", []):
             outputs[output["OutputKey"]] = output["OutputValue"]
         
-        # Extract region and account from any ARN in outputs
-        region = None
-        account = None
-        for value in outputs.values():
-            if value.startswith("arn:aws:"):
-                parts = value.split(":")
-                region = parts[3]
-                account = parts[4]
-                break
-        
-        # Fallback to session region if not found
-        if not region:
-            region = boto3.Session().region_name or "us-east-1"
+        # Extract region and account from stack ARN or any ARN in outputs
+        stack_arn = stack_info["StackId"]
+        region = stack_arn.split(":")[3]
+        account = stack_arn.split(":")[4]
         
         return {
             "stack_name": stack_name,
-            "backend_stack": backend_stack,
-            "frontend_stack": frontend_stack,
             "region": region,
             "account": account,
             "outputs": outputs,
         }
         
     except ClientError as e:
-        print_msg(f"CloudFormation error: {e.response.get('Error', {}).get('Code', 'Unknown')}", "error")
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        print_msg(f"CloudFormation error: {error_code}", "error")
+        if error_code == 'ValidationError':
+            print_msg(f"Stack '{stack_name}' not found. Make sure you've deployed the CDK stack.", "error")
         sys.exit(1)
     except Exception as e:
         print_msg(f"Failed to get stack config: {e}", "error")
@@ -137,7 +110,7 @@ def authenticate_cognito(
     client_id: str,
     username: str,
     password: str
-) -> Tuple[str, str]:
+) -> Tuple[str, str, str]:
     """
     Authenticate with Cognito.
     
@@ -148,7 +121,10 @@ def authenticate_cognito(
         password: Password
     
     Returns:
-        Tuple of (access_token, user_id)
+        Tuple of (access_token, id_token, user_id)
+        - access_token: For AgentCore runtime invocations (JWT authorizer)
+        - id_token: For API Gateway Cognito User Pool authorizers
+        - user_id: User's unique identifier (sub claim)
     """
     print("\nAuthenticating...")
     
@@ -184,7 +160,7 @@ def authenticate_cognito(
         print_msg("Authentication successful")
         print(f"  User ID: {user_id}")
         
-        return access_token, user_id
+        return access_token, id_token, user_id
         
     except Exception as e:
         print_msg(f"Authentication failed: {e}", "error")
