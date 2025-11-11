@@ -3,3 +3,4 @@ boto3
 bedrock-agentcore[strands-agents]
 mcp
 requests
+-e ../../.

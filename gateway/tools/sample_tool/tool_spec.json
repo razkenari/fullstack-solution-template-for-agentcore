@@ -1,0 +1,16 @@
+[
+  {
+    "name": "sample_tool",
+    "description": "A sample tool that returns a greeting",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name to greet"
+        }
+      },
+      "required": ["name"]
+    }
+  }
+]

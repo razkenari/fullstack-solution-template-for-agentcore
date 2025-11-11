@@ -2,6 +2,14 @@ FROM public.ecr.aws/docker/library/python:3.11-slim
 
 WORKDIR /app
 
+# Copy GASP package files needed for installation
+COPY ../../gateway gateway/
+COPY ../../pyproject.toml pyproject.toml
+
+# Install GASP package
+RUN pip install --no-cache-dir -e .
+
+# Install agent requirements
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir aws-opentelemetry-distro==0.10.1

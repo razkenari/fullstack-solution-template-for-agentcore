@@ -4,20 +4,32 @@ from mcp.client.streamable_http import streamablehttp_client
 import os
 import boto3
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from access_token import get_gateway_access_token
 import traceback
+
+from gateway.utils.gateway_access_token import get_gateway_access_token
 
 app = BedrockAgentCoreApp()
 
 def get_ssm_parameter(parameter_name: str) -> str:
-    """Fetch parameter from SSM Parameter Store"""
+    """
+    Fetch parameter from SSM Parameter Store.
+    
+    SSM Parameter Store is AWS's service for storing configuration values securely.
+    This function retrieves values like Gateway URLs that are set during deployment.
+    """
     region = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'us-east-1'))
     ssm = boto3.client('ssm', region_name=region)
     response = ssm.get_parameter(Name=parameter_name)
     return response['Parameter']['Value']
 
 async def create_gateway_mcp_client(access_token: str) -> MCPClient:
-    """Create MCP client for AgentCore Gateway with OAuth2 authentication"""
+    """
+    Create MCP client for AgentCore Gateway with OAuth2 authentication.
+    
+    MCP (Model Context Protocol) is how agents communicate with tool providers.
+    This creates a client that can talk to the AgentCore Gateway using the provided
+    access token for authentication. The Gateway then provides access to Lambda-based tools.
+    """
     stack_name = os.environ.get('STACK_NAME', 'gasp-2-1')
     
     print(f"[AGENT] Creating Gateway MCP client for stack: {stack_name}")
@@ -39,7 +51,14 @@ async def create_gateway_mcp_client(access_token: str) -> MCPClient:
     return gateway_client
 
 async def create_basic_agent() -> Agent:
-    """Create a basic agent with Gateway MCP tools"""
+    """
+    Create a basic agent with Gateway MCP tools.
+    
+    This function sets up an agent that can access tools through the AgentCore Gateway.
+    It handles authentication, creates the MCP client connection, and configures the agent
+    with access to all tools available through the Gateway. If Gateway connection fails,
+    it falls back to an agent without tools.
+    """
     system_prompt = """You are a helpful assistant with access to tools via the Gateway.
     When asked about your tools, list them and explain what they do."""
 
@@ -79,7 +98,13 @@ async def create_basic_agent() -> Agent:
 
 @app.entrypoint
 async def invoke(payload=None):
-    """Main entrypoint for the agent"""
+    """
+    Main entrypoint for the agent.
+    
+    This is the function that AgentCore Runtime calls when the agent receives a request.
+    It extracts the user's query from the payload, creates an agent with Gateway tools,
+    and returns the agent's response. This function handles the complete request lifecycle.
+    """
     try:
         print(f"[INVOKE] Starting invocation with payload: {payload}")
         

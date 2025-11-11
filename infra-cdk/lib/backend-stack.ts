@@ -641,7 +641,7 @@ export class BackendStack extends cdk.NestedStack {
     const toolLambda = new lambda.Function(this, "SampleToolLambda", {
       runtime: lambda.Runtime.PYTHON_3_13,
       handler: "sample_tool_lambda.handler",
-      code: lambda.Code.fromAsset(path.join(__dirname, "../../patterns/gateway")),
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../gateway/tools/sample_tool")),
       timeout: cdk.Duration.seconds(30),
     })
 
@@ -746,7 +746,7 @@ export class BackendStack extends cdk.NestedStack {
     const gatewayCustomResourceLambda = new lambda.Function(this, 'GatewayCustomResourceLambda', {
       runtime: lambda.Runtime.PYTHON_3_13,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/gateway-custom-resource')),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambdas/gateway-custom-resource')),
       timeout: cdk.Duration.minutes(5),
       memorySize: 256,
       description: 'Custom Resource for AgentCore Gateway lifecycle management',
@@ -758,23 +758,9 @@ export class BackendStack extends cdk.NestedStack {
       onEventHandler: gatewayCustomResourceLambda,
     })
 
-    // Create simple API spec for the sample tool
-    const apiSpec = [
-      {
-        "name": "sample_tool",
-        "description": "A sample tool that returns a greeting",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Name to greet"
-            }
-          },
-          "required": ["name"]
-        }
-      }
-    ]
+    // Load tool specification from JSON file
+    const toolSpecPath = path.join(__dirname, "../../gateway/tools/sample_tool/tool_spec.json")
+    const apiSpec = JSON.parse(require('fs').readFileSync(toolSpecPath, 'utf8'))
 
     // Cognito OAuth2 configuration for gateway
     const cognitoIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${this.userPool.userPoolId}`
