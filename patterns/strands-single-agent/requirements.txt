@@ -1,6 +1,5 @@
-strands-agents
-strands-agents-tools
-boto3
-bedrock-agentcore[strands-agents]
-mcp
-requests
+# Strands agent dependencies with pinned versions
+strands-agents==1.16.0
+mcp==1.21.0
+boto3>=1.34.0
+bedrock-agentcore[strands-agents]==1.0.6
