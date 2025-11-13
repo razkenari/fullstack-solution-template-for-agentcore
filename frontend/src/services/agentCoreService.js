@@ -11,8 +11,9 @@
 const parseStreamingChunk = (line, currentCompletion, updateCallback) => {
   /**
    * Current Implementation:
-   * - Handles raw Bedrock Converse streaming events nested in "event" key
-   * - Extracts text chunks from contentBlockDelta events (accumulates)
+   * - Handles both Strands (nested Bedrock Converse events) and LangGraph (content array format)
+   * - Strands: Extracts text from json.event.contentBlockDelta.delta.text
+   * - LangGraph: Extracts text from json.content array (content blocks format)
    *
    * TO CUSTOMIZE:
    * Replace this function with your agent's parsing logic.
@@ -40,7 +41,7 @@ const parseStreamingChunk = (line, currentCompletion, updateCallback) => {
   try {
     const json = JSON.parse(data);
 
-    // Handle message start - add newline for new assistant message
+    // Handle Strands format: message start - add newline for new assistant message
     // Example: {"event": {"messageStart": {"role": "assistant"}}}
     if (json.event?.messageStart?.role === 'assistant') {
       if (currentCompletion) {  // Only add newline if there's previous content
@@ -51,7 +52,7 @@ const parseStreamingChunk = (line, currentCompletion, updateCallback) => {
       return currentCompletion;
     }
 
-    // Extract streaming text from contentBlockDelta event
+    // Handle Strands format: Extract streaming text from contentBlockDelta event
     // Example: {"event": {"contentBlockDelta": {"delta": {"text": " there"}}}}
     if (json.event?.contentBlockDelta?.delta?.text) {
       const newCompletion = currentCompletion + json.event.contentBlockDelta.delta.text;
@@ -59,9 +60,33 @@ const parseStreamingChunk = (line, currentCompletion, updateCallback) => {
       return newCompletion;
     }
 
-    // Other events (contentBlockStop, messageStop, metadata) are ignored
-    // They're available for debugging or additional UI features if needed
+    // Handle LangGraph format: AIMessageChunk only
+    // Example: {"content": [{"type": "text", "text": "Hello", "index": 0}], "type": "AIMessageChunk"}
+    if (json.type === 'AIMessageChunk' && Array.isArray(json.content)) {
+      // Handle empty content array (message start)
+      if (json.content.length === 0) {
+        if (currentCompletion) {  // Only add newline if there's previous content
+          const newCompletion = currentCompletion + '\n\n';
+          updateCallback(newCompletion);
+          return newCompletion;
+        }
+        return currentCompletion;
+      }
+      
+      // Extract text from content blocks
+      const textContent = json.content
+        .filter(block => block.type === 'text' && block.text)
+        .map(block => block.text)
+        .join('');
+      
+      if (textContent) {
+        const newCompletion = currentCompletion + textContent;
+        updateCallback(newCompletion);
+        return newCompletion;
+      }
+    }
 
+    // All other events are ignored (tool messages, metadata, etc.)
     return currentCompletion;
   } catch {
     // If JSON parsing fails, skip this line
