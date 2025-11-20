@@ -6,13 +6,13 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb"
 import * as apigateway from "aws-cdk-lib/aws-apigateway"
 import * as logs from "aws-cdk-lib/aws-logs"
 import * as agentcore from "@aws-cdk/aws-bedrock-agentcore-alpha"
+import * as bedrockagentcore from "aws-cdk-lib/aws-bedrockagentcore"
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha"
 import * as lambda from "aws-cdk-lib/aws-lambda"
 import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets"
 import { Construct } from "constructs"
 import { AppConfig } from "./utils/config-manager"
 import { AgentCoreRole } from "./utils/agentcore-role"
-import * as customResources from "aws-cdk-lib/custom-resources"
 import * as path from "path"
 
 export interface BackendStackProps extends cdk.NestedStackProps {
@@ -469,86 +469,6 @@ export class BackendStack extends cdk.NestedStack {
       })
     )
 
-    // Create Custom Resource Lambda with comprehensive permissions
-    // This Lambda function manages the AgentCore Gateway lifecycle since CDK doesn't
-    // natively support AgentCore Gateway resources yet. It handles CREATE, UPDATE,
-    // and DELETE operations for gateways and their Lambda targets.
-    const gatewayCustomResourceRole = new iam.Role(this, "GatewayCustomResourceRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      description: "Execution role for Gateway Custom Resource Lambda",
-    })
-
-    // CloudWatch Logs permissions
-    gatewayCustomResourceRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-        resources: [`arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/*`],
-      })
-    )
-
-    // AgentCore Gateway management permissions
-    gatewayCustomResourceRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "bedrock-agentcore:CreateGateway",
-          "bedrock-agentcore:GetGateway",
-          "bedrock-agentcore:UpdateGateway",
-          "bedrock-agentcore:DeleteGateway",
-          "bedrock-agentcore:ListGateways",
-          "bedrock-agentcore:CreateGatewayTarget",
-          "bedrock-agentcore:GetGatewayTarget",
-          "bedrock-agentcore:UpdateGatewayTarget",
-          "bedrock-agentcore:DeleteGatewayTarget",
-          "bedrock-agentcore:ListGatewayTargets",
-          "bedrock-agentcore:CreateWorkloadIdentity",
-        ],
-        resources: ["*"],
-      })
-    )
-
-    // SSM parameter write permissions
-    gatewayCustomResourceRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:PutParameter"],
-        resources: [
-          `arn:aws:ssm:${this.region}:${this.account}:parameter/${config.stack_name_base}/*`,
-        ],
-      })
-    )
-
-    // IAM PassRole permission
-    gatewayCustomResourceRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["iam:PassRole"],
-        resources: [gatewayRole.roleArn],
-      })
-    )
-
-    // Custom Resource Lambda for Gateway management
-    // This Lambda implements the CloudFormation custom resource interface to manage
-    // AgentCore Gateway lifecycle operations. It's invoked by CloudFormation during
-    // stack CREATE, UPDATE, and DELETE operations.
-    const gatewayCustomResourceLambda = new lambda.Function(this, "GatewayCustomResourceLambda", {
-      runtime: lambda.Runtime.PYTHON_3_13,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(path.join(__dirname, "../lambdas/gateway-custom-resource")),
-      timeout: cdk.Duration.minutes(5),
-      memorySize: 256,
-      description: "Custom Resource for AgentCore Gateway lifecycle management",
-      role: gatewayCustomResourceRole,
-    })
-
-    // Custom Resource Provider
-    // The Provider wraps the Lambda function to handle CloudFormation custom resource
-    // protocol, including retry logic and proper response formatting.
-    const gatewayProvider = new customResources.Provider(this, "GatewayProvider", {
-      onEventHandler: gatewayCustomResourceLambda,
-    })
-
     // Load tool specification from JSON file
     const toolSpecPath = path.join(__dirname, "../../gateway/tools/sample_tool/tool_spec.json")
     const apiSpec = JSON.parse(require("fs").readFileSync(toolSpecPath, "utf8"))
@@ -557,49 +477,83 @@ export class BackendStack extends cdk.NestedStack {
     const cognitoIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${this.userPool.userPoolId}`
     const cognitoDiscoveryUrl = `${cognitoIssuer}/.well-known/openid-configuration`
 
-    // Custom Resource to create/manage gateway
-    // This creates the actual AgentCore Gateway using our custom resource Lambda.
-    // The gateway provides a secure, scalable endpoint for agents to access tools
-    // implemented as Lambda functions. It handles JWT authentication via Cognito
-    // and routes tool calls to appropriate Lambda targets.
-    const gateway = new cdk.CustomResource(this, "AgentCoreGateway", {
-      serviceToken: gatewayProvider.serviceToken,
-      properties: {
-        GatewayName: `${config.stack_name_base}-gateway`,
-        LambdaArn: toolLambda.functionArn,
-        ApiSpec: JSON.stringify(apiSpec),
-        GatewayRoleArn: gatewayRole.roleArn,
-        CognitoIssuer: cognitoIssuer,
-        CognitoClientId: this.machineClient.userPoolClientId,
-        CognitoDiscoveryUrl: cognitoDiscoveryUrl,
-        SsmPrefix: `/${config.stack_name_base}`,
-        Region: this.region,
-        Version: "5",
+    // Create Gateway using L1 construct (CfnGateway)
+    // This replaces the Custom Resource approach with native CloudFormation support
+    const gateway = new bedrockagentcore.CfnGateway(this, "AgentCoreGateway", {
+      name: `${config.stack_name_base}-gateway`,
+      roleArn: gatewayRole.roleArn,
+      protocolType: "MCP",
+      protocolConfiguration: {
+        mcp: {
+          supportedVersions: ["2025-03-26"],
+          // Optional: Enable semantic search for tools
+          // searchType: "SEMANTIC",
+        },
       },
+      authorizerType: "CUSTOM_JWT",
+      authorizerConfiguration: {
+        customJwtAuthorizer: {
+          allowedClients: [this.machineClient.userPoolClientId],
+          discoveryUrl: cognitoDiscoveryUrl,
+        },
+      },
+      description: "AgentCore Gateway with MCP protocol and JWT authentication",
     })
 
-    // Ensure gateway is created after all dependencies
-    // These dependencies ensure proper creation order and prevent race conditions
-    // during stack deployment. The gateway needs the Lambda function, Cognito client,
-    // and IAM role to be fully created before it can be configured.
+    // Create Gateway Target using L1 construct (CfnGatewayTarget)
+    const gatewayTarget = new bedrockagentcore.CfnGatewayTarget(this, "GatewayTarget", {
+      gatewayIdentifier: gateway.attrGatewayIdentifier,
+      name: "sample-tool-target",
+      description: "Sample tool Lambda target",
+      targetConfiguration: {
+        mcp: {
+          lambda: {
+            lambdaArn: toolLambda.functionArn,
+            toolSchema: {
+              inlinePayload: apiSpec,
+            },
+          },
+        },
+      },
+      credentialProviderConfigurations: [
+        {
+          credentialProviderType: "GATEWAY_IAM_ROLE",
+        },
+      ],
+    })
+
+    // Ensure proper creation order
+    gatewayTarget.addDependency(gateway)
     gateway.node.addDependency(toolLambda)
     gateway.node.addDependency(this.machineClient)
     gateway.node.addDependency(gatewayRole)
 
+    // Store Gateway URL in SSM for runtime access
+    new ssm.StringParameter(this, "GatewayUrlParam", {
+      parameterName: `/${config.stack_name_base}/gateway_url`,
+      stringValue: gateway.attrGatewayUrl,
+      description: "AgentCore Gateway URL",
+    })
+
     // Output gateway information
     new cdk.CfnOutput(this, "GatewayId", {
-      value: gateway.getAttString("GatewayId"),
-      description: "AgentCore Gateway ID (CDK Managed)",
+      value: gateway.attrGatewayIdentifier,
+      description: "AgentCore Gateway ID",
     })
 
     new cdk.CfnOutput(this, "GatewayUrl", {
-      value: gateway.getAttString("GatewayUrl"),
-      description: "AgentCore Gateway URL (CDK Managed)",
+      value: gateway.attrGatewayUrl,
+      description: "AgentCore Gateway URL",
+    })
+
+    new cdk.CfnOutput(this, "GatewayArn", {
+      value: gateway.attrGatewayArn,
+      description: "AgentCore Gateway ARN",
     })
 
     new cdk.CfnOutput(this, "GatewayTargetId", {
-      value: gateway.getAttString("TargetId"),
-      description: "AgentCore Gateway Target ID (CDK Managed)",
+      value: gatewayTarget.ref,
+      description: "AgentCore Gateway Target ID",
     })
 
     new cdk.CfnOutput(this, "ToolLambdaArn", {

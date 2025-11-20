@@ -41,12 +41,13 @@ We chose Lambda targets for the following production advantages:
 
 ### Gateway Configuration
 
-The gateway is created with the following configuration:
+The gateway is created using AWS CDK L1 constructs with the following configuration:
 
 - **Protocol Type**: MCP (Model Context Protocol)
 - **Authorization**: Custom JWT with Cognito integration
 - **Authentication**: Machine-to-machine client credentials flow
 - **Target Type**: AWS Lambda functions
+- **Optional Features**: Semantic search (can be enabled for tool discovery)
 
 ### Lambda Target Structure
 
@@ -188,14 +189,14 @@ When defining tool specs for Gateway, use these types:
 
 ## Key Components
 
-### 1. Gateway Custom Resource
+### 1. Gateway L1 Construct
 
-A custom CloudFormation resource manages the gateway lifecycle:
+The gateway is created using native CloudFormation L1 constructs in `infra-cdk/lib/backend-stack.ts`:
 
-- Creates AgentCore Gateway with MCP protocol
-- Configures JWT authorization with Cognito
-- Creates Lambda targets with tool schemas
-- Manages gateway updates and deletions
+- `CfnGateway`: Creates AgentCore Gateway with MCP protocol
+- `CfnGatewayTarget`: Configures Lambda targets with tool schemas
+- JWT authorization configured via Cognito
+- Automatic lifecycle management by CloudFormation
 
 ### 2. Sample Tool Lambda
 
@@ -216,10 +217,9 @@ Located in `patterns/gateway/sample_tool_lambda.py`:
 Gateway configuration is stored in SSM for easy access:
 
 - `/stack-name/gateway_url`: Gateway endpoint URL
-- `/stack-name/gateway_id`: Gateway identifier
-- `/stack-name/target_id`: Lambda target identifier
 - `/stack-name/machine_client_id`: Cognito client ID
 - `/stack-name/machine_client_secret`: Cognito client secret
+- `/stack-name/cognito_provider`: Cognito domain URL
 
 ## Testing the Gateway
 
@@ -232,9 +232,9 @@ python3 scripts/test-gateway.py
 ```
 
 This script:
-1. Authenticates using machine client credentials
-2. Lists available tools via `tools/list`
-3. Calls the sample tool via `tools/call`
+1. Authenticates using machine client credentials from SSM
+2. Lists available tools via MCP protocol
+3. Calls the sample tool with test parameters
 4. Displays responses for verification
 
 ### Integration with AgentCore Runtime
@@ -385,6 +385,34 @@ const weatherToolSchema = {
 - Verify tool schema matches Lambda implementation
 - Check gateway target configuration
 - Ensure Lambda function is deployed and accessible
+
+**Gateway returns "An internal error occurred"**
+
+- Enable debugging to see detailed error messages by updating the gateway to set `exceptionLevel: 'DEBUG'` in the CDK construct or via AWS CLI.
+
+```bash
+# Enable debugging on gateway
+aws bedrock-agentcore-control update-gateway \
+  --gateway-identifier <GATEWAY_ID> \
+  --name <GATEWAY_NAME> \
+  --role-arn <ROLE_ARN> \
+  --protocol-type MCP \
+  --authorizer-type CUSTOM_JWT \
+  --authorizer-configuration <AUTH_CONFIG> \
+  --exception-level DEBUG
+```
+
+Or update the gateway construct in CDK:
+
+```typescript
+const gateway = new bedrockagentcore.CfnGateway(this, "AgentCoreGateway", {
+  name: `${config.stack_name_base}-gateway`,
+  roleArn: gatewayRole.roleArn,
+  protocolType: "MCP",
+  exceptionLevel: "DEBUG", // Add this line for detailed error messages
+  // ... rest of configuration
+})
+```
 
 ### Debug Steps
 
