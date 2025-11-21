@@ -92,7 +92,9 @@ export class AgentCoreRole extends iam.Role {
               sid: "SecretsManagerAccess",
               effect: iam.Effect.ALLOW,
               actions: ["secretsmanager:GetSecretValue"],
-              resources: [`arn:aws:secretsmanager:${region}:${accountId}:secret:/*`],
+              resources: [
+                `arn:aws:secretsmanager:${region}:${accountId}:secret:/*/machine_client_secret*`,
+              ],
             }),
           ],
         }),
