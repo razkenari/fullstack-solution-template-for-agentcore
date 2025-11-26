@@ -52,7 +52,8 @@ class CodeInterpreterTools:
         client = self._get_code_interpreter_client()
         try:
             response = client.invoke(
-                "executeCode", {"code": code, "language": "python", "clearContext": False}
+                "executeCode",
+                {"code": code, "language": "python", "clearContext": False},
             )
 
             results = []
@@ -60,7 +61,11 @@ class CodeInterpreterTools:
                 if "result" in event:
                     results.append(event["result"])
 
-            return json.dumps(results, indent=2) if results else json.dumps({"error": "No results returned"}, indent=2)
+            return (
+                json.dumps(results, indent=2)
+                if results
+                else json.dumps({"error": "No results returned"}, indent=2)
+            )
         except Exception as e:
             logger.error(f"Code execution failed: {e}")
             return json.dumps({"error": f"Code execution failed: {str(e)}"}, indent=2)

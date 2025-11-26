@@ -266,44 +266,73 @@ If you later need Gateway consistency, you can:
 
 ### What We Implemented
 
-GASP uses **Approach 1: Direct Integration** for AgentCore Code Interpreter.
+GASP uses **Approach 1: Direct Integration** for AgentCore Code Interpreter with a **reusable architecture** that allows the tool to be shared across different agent patterns (Strands, LangGraph, etc.).
 
-### Code Changes
+### Architecture Overview
 
-#### 1. Created `code_interpreter_tools.py`
+The Code Interpreter implementation follows a **layered architecture**:
 
-**Location**: `patterns/strands-single-agent/code_interpreter_tools.py`
+```
+tools/code_interpreter/
+└── code_interpreter_tools.py          # Core logic (framework-agnostic)
 
-**Purpose**: Wrapper class for Code Interpreter functionality
+patterns/strands-single-agent/
+├── strands_code_interpreter.py        # Strands wrapper (uses @tool decorator)
+└── basic_agent.py                     # Agent implementation
+
+patterns/langgraph-single-agent/
+└── tools/
+    └── langgraph_execute_python.py    # LangGraph wrapper (uses @tool decorator)
+```
+
+**Key Design Principles**:
+1. **Core logic is framework-agnostic** - Lives in `tools/code_interpreter/`
+2. **Pattern-specific wrappers** - Each agent pattern has its own wrapper
+3. **Reusability** - Core tool can be used by any pattern
+4. **Maintainability** - Bug fixes in core benefit all patterns
+
+### Code Structure
+
+#### 1. Core Tool: `tools/code_interpreter/code_interpreter_tools.py`
+
+**Purpose**: Framework-agnostic Code Interpreter functionality
 
 **Key Components**:
 ```python
 from bedrock_agentcore.tools.code_interpreter_client import CodeInterpreter
-from strands import tool
 
 class CodeInterpreterTools:
+    """Core Code Interpreter tools (framework-agnostic)."""
+    
     def __init__(self, region: str):
         self.region = region
         self._code_client = None
     
-    def _get_client(self):
+    def _get_code_interpreter_client(self):
         """Lazy initialization of Code Interpreter client."""
         if self._code_client is None:
             self._code_client = CodeInterpreter(self.region)
             self._code_client.start()
         return self._code_client
     
-    @tool
     def execute_python(self, code: str, description: str = "") -> str:
         """Execute Python code in secure sandbox."""
-        client = self._get_client()
+        if description:
+            code = f"# {description}\n{code}"
+        
+        client = self._get_code_interpreter_client()
         response = client.invoke("executeCode", {
             "code": code,
             "language": "python",
             "clearContext": False
         })
+        
+        results = []
         for event in response["stream"]:
-            return json.dumps(event["result"], indent=2)
+            if "result" in event:
+                results.append(event["result"])
+        
+        return json.dumps(results, indent=2)
     
     def cleanup(self):
         """Clean up Code Interpreter session."""
@@ -313,25 +342,78 @@ class CodeInterpreterTools:
 ```
 
 **Design Decisions**:
-- **Lazy initialization**: Client created only when first tool is called
-- **Session persistence**: `clearContext=False` maintains state across calls
-- **Cleanup support**: `cleanup()` method for proper session termination
-- **Strands decorator**: `@tool` makes it discoverable by agent
+- **No framework dependencies** - Pure Python, no Strands/LangGraph imports
+- **Lazy initialization** - Client created only when first tool is called
+- **Session persistence** - `clearContext=False` maintains state across calls
+- **Cleanup support** - `cleanup()` method for proper session termination
 
-#### 2. Updated `basic_agent.py`
+#### 2. Strands Wrapper: `patterns/strands-single-agent/strands_code_interpreter.py`
+
+**Purpose**: Strands-specific wrapper that adds `@tool` decorator
+
+```python
+from strands import tool
+from tools.code_interpreter.code_interpreter_tools import CodeInterpreterTools
+
+class StrandsCodeInterpreterTools:
+    """Strands wrapper for Code Interpreter tools."""
+    
+    def __init__(self, region: str):
+        self.core_tools = CodeInterpreterTools(region)
+    
+    def cleanup(self):
+        self.core_tools.cleanup()
+    
+    @tool
+    def execute_python(self, code: str, description: str = "") -> str:
+        """Execute Python code in secure sandbox."""
+        return self.core_tools.execute_python(code, description)
+```
+
+**Why a Wrapper?**
+- Strands requires `@tool` decorator for tool discovery
+- Keeps framework-specific code separate from core logic
+- Allows core tool to be used by other frameworks
+
+#### 3. LangGraph Wrapper: `patterns/langgraph-single-agent/tools/langgraph_execute_python.py`
+
+**Purpose**: LangGraph-specific wrapper (ready for future use)
+
+```python
+from langchain_core.tools import tool
+from tools.code_interpreter.code_interpreter_tools import CodeInterpreterTools
+
+class LangGraphCodeInterpreterTools:
+    """LangGraph wrapper for Code Interpreter tools."""
+    
+    def __init__(self, region: str):
+        self.core_tools = CodeInterpreterTools(region)
+    
+    def cleanup(self):
+        self.core_tools.cleanup()
+    
+    @tool
+    def execute_python(self, code: str, description: str = "") -> str:
+        """Execute Python code in secure sandbox."""
+        return self.core_tools.execute_python(code, description)
+```
+
+**Note**: This wrapper is ready for when LangGraph pattern is implemented.
+
+#### 4. Agent Integration: `patterns/strands-single-agent/basic_agent.py`
 
 **Changes Made**:
 
 **a) Added Import**:
 ```python
-from code_interpreter_tools import CodeInterpreterTools
+from strands_code_interpreter import StrandsCodeInterpreterTools
 ```
 
 **b) Initialize Code Interpreter in `create_basic_agent()`**:
 ```python
 # Initialize Code Interpreter tools
 region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-code_tools = CodeInterpreterTools(region)
+code_tools = StrandsCodeInterpreterTools(region)
 ```
 
 **c) Register Tool with Agent**:
@@ -354,6 +436,54 @@ agent = Agent(
 system_prompt = """You are a helpful assistant with access to tools via the Gateway and Code Interpreter.
 When asked about your tools, list them and explain what they do."""
 ```
+
+### Dockerfile Changes
+
+The Dockerfile was updated to copy the new directory structure:
+
+```dockerfile
+# Copy pyproject.toml and packages for GASP installation
+COPY pyproject.toml .
+COPY gateway/ gateway/
+COPY tools/ tools/                    # Added: Core tools directory
+
+# ... (install dependencies) ...
+
+# Copy agent code files
+COPY patterns/strands-single-agent/basic_agent.py .
+COPY patterns/strands-single-agent/strands_code_interpreter.py .
+
+# Start agent
+CMD ["opentelemetry-instrument", "python", "-m", "basic_agent"]
+```
+
+**Key Changes**:
+1. Added `COPY tools/ tools/` to include core Code Interpreter logic
+2. Copy wrapper file `strands_code_interpreter.py` to `/app/` root
+3. Agent imports work because working directory is `/app/`
+
+### Benefits of This Architecture
+
+1. **Reusability**: Core logic in `tools/code_interpreter/` can be used by:
+   - Strands agents
+   - LangGraph agents
+   - Future agent patterns
+   - Direct Python scripts
+
+2. **Maintainability**: 
+   - Bug fixes in core benefit all patterns
+   - Framework-specific changes isolated to wrappers
+   - Clear separation of concerns
+
+3. **Testability**:
+   - Core logic can be unit tested independently
+   - Wrappers can be tested separately
+   - Integration tests verify end-to-end flow
+
+4. **Extensibility**:
+   - Easy to add new agent patterns
+   - Just create a new wrapper for the framework
+   - Core logic remains unchanged
 
 ### Tool Registration
 
@@ -390,6 +520,8 @@ Agent
 │   └── text_analysis_tool (Lambda-based)
 └── Code Interpreter (Direct)
     └── execute_python (Built-in AgentCore service)
+        ├── Core Logic (tools/code_interpreter/)
+        └── Strands Wrapper (patterns/strands-single-agent/)
 ```
 
 ### How It Works at Runtime
