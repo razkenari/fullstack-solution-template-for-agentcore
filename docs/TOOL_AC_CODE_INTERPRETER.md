@@ -1,6 +1,6 @@
 # AgentCore Code Interpreter Integration
 
-This document explains the architectural decisions for integrating Amazon Bedrock AgentCore Code Interpreter into GASP.
+This document explains the architectural decisions for integrating Amazon Bedrock AgentCore Code Interpreter into FAST.
 
 ## What is AgentCore Code Interpreter?
 
@@ -16,7 +16,7 @@ Amazon Bedrock AgentCore Code Interpreter is a fully managed capability that ena
 
 ## Why Direct Integration (Not Gateway)?
 
-GASP integrates Code Interpreter **directly into agents** rather than through the Gateway. Here's why:
+FAST integrates Code Interpreter **directly into agents** rather than through the Gateway. Here's why:
 
 ### Approach 1: Direct Integration ✅ (Chosen)
 
