@@ -51,7 +51,7 @@ The gateway is created using AWS CDK L1 constructs with the following configurat
 
 ### Lambda Target Structure
 
-Each Lambda target in GASP follows this pattern:
+Each Lambda target in FAST follows this pattern:
 
 ```python
 def handler(event, context):
@@ -248,7 +248,7 @@ The gateway integrates with AgentCore Runtime through:
 
 ### Integration with Agents via MCP
 
-Agents connect to the Gateway using the Model Context Protocol (MCP). GASP provides two integration approaches:
+Agents connect to the Gateway using the Model Context Protocol (MCP). FAST provides two integration approaches:
 
 #### LangGraph with MultiServerMCPClient
 

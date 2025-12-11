@@ -67,7 +67,7 @@ Code Interpreter is a **built-in AgentCore service**, similar to Bedrock models 
 
 ## Implementation Architecture
 
-GASP uses a **layered architecture** for reusability across agent patterns:
+FAST uses a **layered architecture** for reusability across agent patterns:
 
 ```
 tools/code_interpreter/
@@ -178,4 +178,4 @@ Potential improvements:
 
 - [AgentCore Code Interpreter Documentation](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html)
 - [AWS IDP Reference Implementation](https://github.com/aws-solutions-library-samples/accelerated-intelligent-document-processing-on-aws)
-- [GASP Gateway Documentation](./GATEWAY.md)
+- [FAST Gateway Documentation](./GATEWAY.md)
