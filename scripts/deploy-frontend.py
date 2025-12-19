@@ -12,7 +12,7 @@ Deploys the Next.js frontend to AWS Amplify by:
 4. Packaging and uploading to S3
 5. Triggering Amplify deployment
 
-Requires: Python 3.8+, AWS CLI, npm, Node.js
+Requires: Python 3.11+, AWS CLI, npm, Node.js
 No external Python dependencies - uses standard library only.
 """
 

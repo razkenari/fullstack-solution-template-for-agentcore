@@ -55,7 +55,7 @@ change anything:
 ## Requirements
 
 - AWS CLI configured with appropriate permissions
-- Python 3.8+ (standard library only, no pip install needed for deployment)
+- Python 3.11+ (standard library only, no pip install needed for deployment)
 - Node.js and npm (for frontend build)
 - CDK stack deployed with the required outputs:
   - `CognitoClientId`
