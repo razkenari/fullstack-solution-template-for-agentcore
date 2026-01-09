@@ -2,6 +2,8 @@
 
 This directory contains the MkDocs-based documentation site for the Fullstack AgentCore Solution Template (FAST). The site uses Material for MkDocs with dynamic navigation and is automatically deployed to GitLab Pages.
 
+Note that we've attempted to put everything `MkDocs` related into the `.mkdocs/` directory and all actual documentation into the `docs/` directory. However `MkDocs` requires the `docs/` directory to be within `.mkdocs/`, which is we've created a symlink of `.mkdocs --> docs/`. Additionally, `MkDocs` requires both a `.nav.yml` (from the `mkdocs-awesome-nav` plugin) and an `index.md` to be within the `docs/` directory, so those have been created as well. They are both commented to indicate to developers that they only exist for the purposes of `MkDocs` and are not to be considered actual FAST documentation.
+
 ## Architecture Overview
 
 The documentation system consists of four key components:
@@ -22,11 +24,12 @@ The configuration intentionally omits a `nav` section at the top level, delegati
 
 Navigation is managed through `.nav.yml` files placed in documentation directories. The `mkdocs-awesome-nav` plugin reads these files to build the navigation tree.
 
-**Key Pattern**: `docs/docs/.nav.yml` uses glob patterns for automatic page discovery:
+**Key Pattern**: `docs/.nav.yml` uses glob patterns for automatic page discovery:
 
 ```yaml
 nav:
-  - Overview:
+  - " ": # This an empty section header, which makes every .md file its own subsection
+    - index.md
     - "*"
 ```
 
@@ -65,7 +68,7 @@ These dependencies are installed in both local development (`make install`) and 
 
 ## GitLab Pages Deployment
 
-The `.gitlab-ci.yml` includes a `pages` job that automatically deploys documentation:
+The `.gitlab-ci.yml` includes a `pages` job that automatically deploys documentation specifically for developers working within gitlab:
 
 **Trigger**: Runs on every merge to the default branch (main/master)
 
@@ -74,7 +77,7 @@ The `.gitlab-ci.yml` includes a `pages` job that automatically deploys documenta
 2. Build MkDocs site to `public/` directory (GitLab Pages requirement)
 3. Publish `public/` as artifacts for GitLab Pages
 
-**URL**: Documentation is served at `https://<namespace>.gitlab.io/<project-name>/`
+**URL**: Documentation is served at `https://<namespace>.gitlab.io/<project-name>/`. The precise URL can be found in the gitlab user interface by navigating to `Deploy-->Pages` on the left hand side of the window.
 
 The job name must be exactly `pages` and artifacts must be in the `public/` directory for GitLab Pages to recognize and deploy the site.
 
@@ -94,9 +97,9 @@ make install
    make docs
    ```
 
-2. Edit markdown files in `docs/docs/` - changes appear instantly in browser
+2. Edit markdown files in `docs/` - changes appear instantly in browser
 
-3. Add new files anywhere in `docs/docs/` - they automatically appear in navigation
+3. Add new files anywhere in `docs/` - they automatically appear in navigation
 
 ### Testing CI Build Locally
 
@@ -110,10 +113,10 @@ This builds the site to `public/` exactly as the CI pipeline does, allowing veri
 
 ### Single Page
 
-Create a markdown file in `docs/docs/`:
+Create a markdown file in `docs/`:
 
 ```bash
-touch docs/docs/NEW_GUIDE.md
+touch docs/NEW_GUIDE.md
 ```
 
 The file automatically appears in the "Overview" section due to the `"*"` glob pattern in `.nav.yml`.
@@ -123,8 +126,8 @@ The file automatically appears in the "Overview" section due to the `"*"` glob p
 Create a subdirectory with its own `.nav.yml`:
 
 ```bash
-mkdir docs/docs/advanced
-touch docs/docs/advanced/.nav.yml
+mkdir docs/advanced
+touch docs/advanced/.nav.yml
 ```
 
 Define the section's navigation structure in `.nav.yml` using the same glob patterns or explicit file lists.
@@ -174,4 +177,4 @@ The site supports:
 
 **GitLab Pages not deploying**: Verify the job is named `pages` and artifacts are in `public/`
 
-**Local server not reloading**: Check that files are in the `docs/docs/` directory, not `docs/`
+**Local server not reloading**: Check that files are in the `docs/` directory, not `docs/`
