@@ -5,6 +5,25 @@ All notable changes to the Fullstack AgentCore Solution Template (FAST) will be 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-01-09
+
+### Added
+- Zip deployment type for AgentCore runtime
+- MkDocs documentation system with automated builds
+- Enhanced CI/CD security scanning configuration
+
+### Changed
+- Updated LangGraph version to address security vulnerability
+- Upgraded to Cognito's new managed login UI
+- Improved documentation structure and navigation
+- Updated frontend dependencies to latest versions
+
+### Fixed
+- CloudWatch Logs permissions for AgentCore runtime
+- Security scan execution to run on all branches
+- Documentation links and structure issues
+- CI/CD pipeline configuration for proper security scanning
+
 ## [0.2.0] - 2025-12-21
 
 ### Changed
