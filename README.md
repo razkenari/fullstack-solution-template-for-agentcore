@@ -83,9 +83,13 @@ fullstack-agentcore-solution-template/
 │   ├── lambdas/            # Lambda function code
 │   └── config.yaml         # Deployment configuration
 ├── patterns/               # Agent pattern implementations
-│   └── strands-single-agent/ # Basic strands agent pattern
-│       ├── basic_agent.py  # Agent implementation
-│       ├── strands_code_interpreter.py # Code Interpreter wrapper
+│   ├── strands-single-agent/ # Basic strands agent pattern
+│   │   ├── basic_agent.py  # Agent implementation
+│   │   ├── strands_code_interpreter.py # Code Interpreter wrapper
+│   │   ├── requirements.txt # Agent dependencies
+│   │   └── Dockerfile      # Container configuration
+│   └── langgraph-single-agent/ # LangGraph agent pattern
+│       ├── langgraph_agent.py # Agent implementation
 │       ├── requirements.txt # Agent dependencies
 │       └── Dockerfile      # Container configuration
 ├── tools/                  # Reusable tools (framework-agnostic)
@@ -97,24 +101,32 @@ fullstack-agentcore-solution-template/
 ├── scripts/                # Deployment and test scripts
 │   ├── deploy-frontend.py  # Cross-platform frontend deployment
 │   └── test-*.py          # Various test utilities
-├── docs/                   # MkDocs documentation site
+├── docs/                   # Documentation source files
+│   ├── .nav.yml            # Navigation configuration
+│   ├── index.md            # Documentation landing page
+│   ├── DEPLOYMENT.md       # Deployment guide
+│   ├── AGENT_CONFIGURATION.md # Agent setup guide
+│   ├── MEMORY_INTEGRATION.md # Memory integration guide
+│   ├── GATEWAY.md          # Gateway integration guide
+│   ├── STREAMING.md        # Streaming implementation guide
+│   ├── TOOL_AC_CODE_INTERPRETER.md # Code Interpreter guide
+│   ├── VERSION_BUMP_PLAYBOOK.md # Version management
+│   └── architecture-diagram/ # Architecture diagrams
+├── .mkdocs/                # MkDocs build configuration
 │   ├── mkdocs.yml          # MkDocs configuration
 │   ├── requirements.txt    # Documentation dependencies
 │   ├── Makefile            # Build and deployment commands
-│   ├── README.md           # Documentation system overview
-│   └── docs/               # Documentation content
-│       ├── .nav.yml        # Navigation configuration
-│       ├── README.md       # Documentation landing page
-│       ├── DEPLOYMENT.md   # Deployment guide
-│       ├── AGENT_CONFIGURATION.md # Agent setup guide
-│       ├── MEMORY_INTEGRATION.md # Memory integration guide
-│       ├── GATEWAY.md      # Gateway integration guide
-│       ├── STREAMING.md    # Streaming implementation guide
-│       ├── TOOL_AC_CODE_INTERPRETER.md # Code Interpreter guide
-│       ├── VERSION_BUMP_PLAYBOOK.md # Version management
-│       └── architecture-diagram/ # Architecture diagrams
+│   └── README.md           # Documentation system overview
+├── public/                 # Generated documentation site (MkDocs output)
 ├── tests/                  # Test suite
-├── vibe-context/           # AI coding assistant context
+│   ├── unit/               # Unit tests
+│   ├── integration/        # Integration tests
+│   └── conftest.py         # Pytest configuration
+├── vibe-context/           # AI coding assistant context and rules
+│   ├── AGENTS.md           # Rules for AI assistants
+│   ├── coding-conventions.md # Code style guidelines
+│   └── development-best-practices.md # Development guidelines
+├── .kiro/                  # Kiro CLI configuration
 └── README.md
 ```
 
