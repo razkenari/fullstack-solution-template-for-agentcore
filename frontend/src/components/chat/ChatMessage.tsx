@@ -1,3 +1,5 @@
+"use client"
+
 import { useState } from "react"
 import { ThumbsUp, ThumbsDown } from "lucide-react"
 import { Message } from "./types"

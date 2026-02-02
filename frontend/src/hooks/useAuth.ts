@@ -1,3 +1,4 @@
+"use client"
 import { useAuth as useOidcAuth } from "react-oidc-context"
 import { useEffect, useState } from "react"
 import { WebStorageStateStore } from "oidc-client-ts"

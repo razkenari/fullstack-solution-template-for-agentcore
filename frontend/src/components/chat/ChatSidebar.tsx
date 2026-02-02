@@ -1,3 +1,5 @@
+"use client"
+
 import { MessageSquare, Plus } from "lucide-react"
 import { ChatSession } from "./types"
 import {

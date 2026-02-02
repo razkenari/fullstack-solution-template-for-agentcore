@@ -1,3 +1,5 @@
+"use client"
+
 import { createCognitoAuthConfig, cognitoAuthConfig } from "@/lib/auth"
 import { useEffect, useState, PropsWithChildren } from "react"
 import { AuthProvider as OidcAuthProvider } from "react-oidc-context"
