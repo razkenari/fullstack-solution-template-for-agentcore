@@ -179,7 +179,7 @@ async def agent_stream(payload):
         ):
             # event is a tuple: (message_chunk, metadata)
             message_chunk, metadata = event
-            yield message_chunk
+            yield message_chunk.model_dump()
         
         print("[STREAM] Streaming completed successfully")
             

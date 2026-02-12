@@ -1,3 +1,4 @@
+import json
 import os
 import traceback
 
@@ -180,7 +181,7 @@ async def agent_stream(payload):
 
         # Use the agent's stream_async method for true token-level streaming
         async for event in agent.stream_async(user_query):
-            yield event
+            yield json.loads(json.dumps(dict(event), default=str))
 
     except Exception as e:
         print(f"[STREAM ERROR] Error in agent_stream: {e}")
