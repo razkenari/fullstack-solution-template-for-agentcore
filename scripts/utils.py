@@ -227,10 +227,14 @@ def create_mock_jwt(user_id: str) -> str:
     Returns:
         str: A mock JWT string (header.payload.signature).
     """
-    header = base64.urlsafe_b64encode(
-        json.dumps({"alg": "none", "typ": "JWT"}).encode()
-    ).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"sub": user_id}).encode()
-    ).rstrip(b"=").decode()
+    header = (
+        base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(json.dumps({"sub": user_id}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
     return f"{header}.{payload}."

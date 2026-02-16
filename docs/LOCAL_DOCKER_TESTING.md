@@ -189,10 +189,11 @@ docker run --rm -it -p 8080:8080 \
   -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
   fast-agent-local
 
-# Test with curl
+# Test with curl (mock JWT with sub=test-user)
 curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Hello", "userId": "test", "runtimeSessionId": "test-123"}'
+  -H "Authorization: Bearer $(python3 -c "import base64,json; h=base64.urlsafe_b64encode(json.dumps({'alg':'none','typ':'JWT'}).encode()).rstrip(b'=').decode(); p=base64.urlsafe_b64encode(json.dumps({'sub':'test-user'}).encode()).rstrip(b'=').decode(); print(f'{h}.{p}.')")" \
+  -d '{"prompt": "Hello", "runtimeSessionId": "test-123"}'
 ```
 
 ### Testing Health Endpoint
