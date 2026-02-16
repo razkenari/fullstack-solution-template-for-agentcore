@@ -47,19 +47,36 @@ See the [deployment guide](docs/DEPLOYMENT.md) for detailed instructions on how 
 
 ### Local Development
 
-For local development, you can use Docker Compose to run both the frontend and agent locally while still connecting to your deployed AWS resources:
+Local development requires a deployed FAST stack because the agent depends on AWS services that cannot run locally:
+- **AgentCore Memory** - stores conversation history
+- **AgentCore Gateway** - provides tool access via MCP
+- **SSM Parameters** - stores configuration (Gateway URL, client IDs)
+- **Secrets Manager** - stores Gateway authentication credentials
+
+You must first deploy the stack with `cdk deploy`, then you can run the frontend and agent locally using Docker Compose while connecting to these deployed AWS resources:
 
 ```bash
-# Set required environment variables
+# Set required environment variables (see below for how to find these)
 export MEMORY_ID=your-memory-id
 export STACK_NAME=your-stack-name  
 export AWS_DEFAULT_REGION=us-east-1
 
 # Start the full stack locally
+cd docker
 docker-compose up --build
 ```
 
-See the [local development guide](docs/LOCAL_DEVELOPMENT.md) for detailed setup instructions. Note that you still need a deployed FAST stack for AWS dependencies (Memory, Gateway, SSM parameters).
+**Finding the environment variable values:**
+- `STACK_NAME`: Use the `stack_name_base` value from `infra-cdk/config.yaml`
+- `MEMORY_ID`: Extract from the `MemoryArn` CloudFormation output (the ID is the last segment after `/`)
+  ```bash
+  aws cloudformation describe-stacks --stack-name <your-stack-name> \
+    --query 'Stacks[0].Outputs[?OutputKey==`MemoryArn`].OutputValue' --output text
+  # Returns: arn:aws:bedrock-agentcore:region:account:memory/MEMORY_ID
+  ```
+- `AWS_DEFAULT_REGION`: The region where you deployed the stack (e.g., `us-east-1`)
+
+See the [local development guide](docs/LOCAL_DEVELOPMENT.md) for detailed setup instructions.
 
 What comes next? That's up to you, the developer. With your requirements in mind, open up your coding assistant, describe what you'd like to do, and begin. The steering docs in this repository help guide coding assistants with best practices, and encourage them to always refer to the documentation built-in to the repository to make sure you end up building something great.
 

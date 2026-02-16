@@ -69,11 +69,15 @@ def build_docker_image(pattern: str) -> bool:
     print(f"Context: {REPO_ROOT}\n")
 
     cmd = [
-        "docker", "build",
-        "-f", dockerfile,
-        "-t", IMAGE_NAME,
-        "--platform", "linux/arm64",
-        "."
+        "docker",
+        "build",
+        "-f",
+        dockerfile,
+        "-t",
+        IMAGE_NAME,
+        "--platform",
+        "linux/arm64",
+        ".",
     ]
 
     result = subprocess.run(cmd, cwd=REPO_ROOT)
@@ -110,21 +114,30 @@ def run_docker_container(memory_id: str, stack_name: str, region: str) -> Option
             env_args.extend(["-e", f"{var}={val}"])
 
     # Required environment variables for agent
-    env_args.extend([
-        "-e", f"MEMORY_ID={memory_id}",
-        "-e", f"STACK_NAME={stack_name}",
-        "-e", f"AWS_DEFAULT_REGION={region}",
-        "-e", f"AWS_REGION={region}",
-    ])
+    env_args.extend(
+        [
+            "-e",
+            f"MEMORY_ID={memory_id}",
+            "-e",
+            f"STACK_NAME={stack_name}",
+            "-e",
+            f"AWS_DEFAULT_REGION={region}",
+            "-e",
+            f"AWS_REGION={region}",
+        ]
+    )
 
     cmd = [
-        "docker", "run",
+        "docker",
+        "run",
         "--rm",
         "-d",
-        "-p", "8080:8080",
-        "--platform", "linux/arm64",
+        "-p",
+        "8080:8080",
+        "--platform",
+        "linux/arm64",
         *env_args,
-        IMAGE_NAME
+        IMAGE_NAME,
     ]
 
     print(f"Memory ID: {memory_id}")
@@ -145,6 +158,7 @@ def run_docker_container(memory_id: str, stack_name: str, region: str) -> Option
     for _ in range(30):
         try:
             import requests
+
             resp = requests.get("http://localhost:8080/ping", timeout=2)
             if resp.status_code == 200:
                 print_msg("Agent is ready", "success")
@@ -156,7 +170,8 @@ def run_docker_container(memory_id: str, stack_name: str, region: str) -> Option
     # Check if container is still running
     check = subprocess.run(
         ["docker", "ps", "-q", "-f", f"id={_container_id}"],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     if not check.stdout.strip():
         print_msg("Container exited unexpectedly. Checking logs...", "error")
@@ -201,7 +216,7 @@ def invoke_agent_docker(url: str, prompt: str, session_id: str, user_id: str) ->
             headers={"Content-Type": "application/json"},
             json=payload,
             stream=True,
-            timeout=120
+            timeout=120,
         )
 
         if response.status_code != 200:
@@ -231,7 +246,7 @@ def run_interactive_chat() -> None:
             prompt = input(f"{Fore.CYAN}You:{Style.RESET_ALL} ").strip()
             if not prompt:
                 continue
-            if prompt.lower() in ['exit', 'quit']:
+            if prompt.lower() in ["exit", "quit"]:
                 break
 
             start = time.time()
@@ -239,7 +254,7 @@ def run_interactive_chat() -> None:
                 url="http://localhost:8080/invocations",
                 prompt=prompt,
                 session_id=session_id,
-                user_id="docker-test-user"
+                user_id="docker-test-user",
             )
             elapsed = time.time() - start
             print(f"\n{Fore.CYAN}[{elapsed:.2f}s]{Style.RESET_ALL}\n")
@@ -277,23 +292,17 @@ Examples:
   python scripts/test-agent-docker.py --build-only       # Build only
   python scripts/test-agent-docker.py --skip-build       # Use existing image
   python scripts/test-agent-docker.py --pattern langgraph-single-agent
-        """
+        """,
     )
 
     parser.add_argument(
-        "--pattern",
-        type=str,
-        help="Override agent pattern from config.yaml"
+        "--pattern", type=str, help="Override agent pattern from config.yaml"
     )
     parser.add_argument(
-        "--build-only",
-        action="store_true",
-        help="Build image only, don't run"
+        "--build-only", action="store_true", help="Build image only, don't run"
     )
     parser.add_argument(
-        "--skip-build",
-        action="store_true",
-        help="Skip build, use existing image"
+        "--skip-build", action="store_true", help="Skip build, use existing image"
     )
 
     return parser.parse_args()
@@ -309,7 +318,7 @@ def main() -> None:
 
     # Get configuration from stack
     stack_cfg = get_stack_config()
-    pattern = args.pattern or stack_cfg.get('pattern', 'strands-single-agent')
+    pattern = args.pattern or stack_cfg.get("pattern", "strands-single-agent")
 
     print(f"Pattern: {pattern}\n")
 
@@ -323,15 +332,17 @@ def main() -> None:
         return
 
     # Get stack outputs for runtime config
-    outputs = stack_cfg['outputs']
-    memory_arn = outputs.get('MemoryArn')
+    outputs = stack_cfg["outputs"]
+    memory_arn = outputs.get("MemoryArn")
     if not memory_arn:
-        print_msg("MemoryArn not found in stack outputs. Is the stack deployed?", "error")
+        print_msg(
+            "MemoryArn not found in stack outputs. Is the stack deployed?", "error"
+        )
         sys.exit(1)
 
     memory_id = memory_arn.split("/")[-1]
-    region = stack_cfg['region']
-    stack_name = stack_cfg['stack_name']
+    region = stack_cfg["region"]
+    stack_name = stack_cfg["stack_name"]
 
     # Run container
     if not run_docker_container(memory_id, stack_name, region):

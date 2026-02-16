@@ -4,7 +4,7 @@
 services:
   agent:
     build:
-      context: .
+      context: ..
       dockerfile: patterns/strands-single-agent/Dockerfile
       platforms:
         - linux/arm64
@@ -29,12 +29,12 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend.dev
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - ../frontend:/app
       - /app/node_modules
     environment:
       - NODE_ENV=development

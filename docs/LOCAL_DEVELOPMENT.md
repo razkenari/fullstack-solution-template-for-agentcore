@@ -56,7 +56,7 @@ aws cloudformation describe-stacks --stack-name your-stack-name --query 'Stacks[
 
 2. **Start the Stack**:
    ```bash
-   docker-compose up --build
+   cd docker && docker-compose up --build
    ```
 
 3. **Access the Application**:
@@ -80,7 +80,7 @@ AWS_SECRET_ACCESS_KEY=your-secret
 AWS_SESSION_TOKEN=your-token
 ```
 
-Then run: `docker-compose up --build`
+Then run: `cd docker && docker-compose up --build`
 
 ## Development Workflow
 
@@ -89,14 +89,14 @@ Then run: `docker-compose up --build`
 - **Frontend Changes**: Files are mounted as volumes, so changes appear immediately
 - **Agent Changes**: Rebuild the agent container:
   ```bash
-  docker-compose up --build agent
+  cd docker && docker-compose up --build agent
   ```
 
 ### Using Different Agent Patterns
 
 To use a different agent pattern (e.g., LangGraph):
 
-1. **Edit docker-compose.yml**:
+1. **Edit docker/docker-compose.yml**:
    ```yaml
    agent:
      build:
@@ -105,7 +105,7 @@ To use a different agent pattern (e.g., LangGraph):
 
 2. **Rebuild**:
    ```bash
-   docker-compose up --build agent
+   cd docker && docker-compose up --build agent
    ```
 
 ### Logs and Debugging
@@ -166,13 +166,13 @@ docker-compose exec frontend sh
 
 ```bash
 # Stop all services
-docker-compose down
+cd docker && docker-compose down
 
 # Stop and remove volumes
-docker-compose down -v
+cd docker && docker-compose down -v
 
 # Stop and remove images
-docker-compose down --rmi all
+cd docker && docker-compose down --rmi all
 ```
 
 ## Production Deployment
