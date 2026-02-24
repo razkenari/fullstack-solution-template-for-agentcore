@@ -63,6 +63,62 @@ FAST supports two deployment types for AgentCore Runtime. Set `deployment_type` 
 
 **ZIP packaging includes**: The `patterns/<your-pattern>/`, `gateway/`, and `tools/` directories are bundled together with dependencies from `requirements.txt`. This matches the `COPY` commands in the Docker deployment's Dockerfile.
 
+### VPC Deployment (Private Network)
+
+By default, the AgentCore Runtime runs in PUBLIC network mode with internet access. To deploy the runtime into an existing VPC for private network isolation, set `network_mode: VPC` in `infra-cdk/config.yaml` and provide your VPC details:
+
+```yaml
+backend:
+  pattern: strands-single-agent
+  deployment_type: docker
+  network_mode: VPC
+  vpc:
+    vpc_id: vpc-0abc1234def56789a
+    subnet_ids:
+      - subnet-aaaa1111bbbb2222c
+      - subnet-cccc3333dddd4444e
+    security_group_ids:  # Optional - a default SG is created if omitted
+      - sg-0abc1234def56789a
+```
+
+The `vpc_id` and `subnet_ids` fields are required. The `security_group_ids` field is optional — if omitted, the CDK construct will create a default security group for the runtime.
+
+#### Required VPC Endpoints
+
+When deploying in VPC mode, the runtime runs in private subnets without internet access. Your VPC must have the following VPC endpoints configured so the agent can reach the AWS services it depends on:
+
+| Endpoint | Service | Type |
+|----------|---------|------|
+| `com.amazonaws.{region}.bedrock-runtime` | Bedrock model invocation | Interface |
+| `com.amazonaws.{region}.bedrock-agent-runtime` | AgentCore Runtime | Interface |
+| `com.amazonaws.{region}.ssm` | SSM Parameter Store | Interface |
+| `com.amazonaws.{region}.secretsmanager` | Secrets Manager | Interface |
+| `com.amazonaws.{region}.logs` | CloudWatch Logs | Interface |
+| `com.amazonaws.{region}.ecr.api` | ECR API (Docker deployment) | Interface |
+| `com.amazonaws.{region}.ecr.dkr` | ECR Docker (Docker deployment) | Interface |
+| `com.amazonaws.{region}.s3` | S3 (ZIP deployment, ECR layers) | Gateway |
+| `com.amazonaws.{region}.dynamodb` | DynamoDB (feedback table) | Gateway |
+
+Replace `{region}` with your deployment region (e.g. `us-east-1`).
+
+All interface endpoints must have private DNS enabled and must be associated with the same subnets and security groups that allow traffic from the AgentCore Runtime.
+
+#### Subnet Requirements
+
+- Use private subnets (no internet gateway route) for proper network isolation
+- Subnets should be in at least two Availability Zones for high availability
+- Subnets must have sufficient available IP addresses for the runtime ENIs
+
+#### NAT Gateway Requirement
+
+A NAT Gateway is required for VPC mode. The agent authenticates with Cognito using the OAuth2 client credentials flow, which calls the Cognito hosted UI token endpoint over HTTPS. This endpoint has no VPC endpoint — it can only be reached over the internet. A NAT Gateway in a public subnet with a `0.0.0.0/0` route from your private subnets provides this outbound IPv4 access. All other AWS service traffic (Bedrock, SSM, etc.) stays internal via VPC endpoints.
+
+#### Security Group Configuration
+
+The CDK stack auto-creates a security group for the AgentCore Runtime. This same security group is typically applied to your VPC endpoints. You must add a self-referencing inbound rule to allow the runtime to reach the endpoints:
+
+- Protocol: TCP, Port: 443, Source: the security group itself
+
 ## Deployment Steps
 
 ### TL;DR version
