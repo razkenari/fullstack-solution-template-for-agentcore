@@ -23,16 +23,15 @@ Examples:
     python scripts/test-agent.py                   # Uses default message
 """
 
+import getpass
 import json
 import subprocess  # nosec B404
 import sys
-import getpass
-import uuid
 import time
-import re
+import uuid
 from pathlib import Path
+from typing import Dict, Tuple
 from urllib.parse import quote
-from typing import Dict, Optional, Tuple
 
 import boto3
 import requests
